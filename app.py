@@ -10,6 +10,11 @@ from supabase import create_client, Client
 import random
 
 # ==========================================
+# 🎨 页面基础设置 (必须在所有 st. 方法之前调用)
+# ==========================================
+st.set_page_config(page_title="N109区点亮计划", layout="wide", initial_sidebar_state="collapsed")
+
+# ==========================================
 # 🔴 猎人请注意：填入你的 Supabase 密钥！
 # ==========================================
 SUPABASE_URL = "https://yqggxqllcutqatwjxmyx.supabase.co"
@@ -99,12 +104,16 @@ def get_coordinates(city_name):
 # ==========================================
 # 🎨 N109区机车霓虹版 UI 深度定制
 # ==========================================
-st.set_page_config(page_title="N109区点亮计划", layout="wide", initial_sidebar_state="collapsed")
+
+# 性能优化：将背景图片缓存到内存，不再每次读取
+@st.cache_data
+def get_base64_image(image_file):
+    with open(image_file, "rb") as f:
+        return base64.b64encode(f.read()).decode()
 
 def set_bg_image(image_file):
     try:
-        with open(image_file, "rb") as f:
-            encoded_string = base64.b64encode(f.read()).decode()
+        encoded_string = get_base64_image(image_file)
         st.markdown(
             f"""
             <style>
@@ -219,10 +228,15 @@ st.markdown("""
 
 st.title("🏍️ N109区点亮计划")
 
+# 性能优化：将音乐文件缓存到内存，加速网页刷新
+@st.cache_data
+def get_audio_bytes(audio_file):
+    with open(audio_file, "rb") as f:
+        return f.read()
+
 # 🦅 专属 BGM 播放器
 try:
-    with open("bgm.mp3", "rb") as f:
-        audio_bytes = f.read()
+    audio_bytes = get_audio_bytes("bgm.mp3")
     st.audio(audio_bytes, format="audio/mpeg", loop=True)
     
     components.html(
@@ -243,12 +257,12 @@ except Exception as e:
     st.warning(f"⚠️ BGM 加载失败: {e}")
 
 # ==========================================
-# 🦅 核心修复：按 created_at 倒序拉取，完美契合你的数据库！
+# 🦅 性能优化核心：单次仅拉取前 1000 条，极大减少网络延时！
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data():
     try:
-        response = supabase.table("blessings").select("*").order("created_at", desc=True).limit(5000).execute()
+        response = supabase.table("blessings").select("*").order("created_at", desc=True).limit(1000).execute()
         data = response.data
         return data
     except Exception as e:
@@ -264,7 +278,7 @@ def save_data(name, city, lon, lat, message):
         st.error(f"⚠️ 数据库写入失败: {e}")
         return False
 
-# --- Pyecharts 赤红呼吸灯地图 (双层特效升级版) ---
+# --- Pyecharts 赤红呼吸灯地图 (性能优化版) ---
 def render_map(data_list):
     geo = (
         Geo(init_opts=opts.InitOpts(width="100%", height="500px", theme=ThemeType.DARK, bg_color="transparent"))
@@ -280,11 +294,11 @@ def render_map(data_list):
     last_coord = st.session_state.get('last_coord')
 
     if data_list:
-        # 🦅 黄金比例：300最新 + 500随机 = 800个点
-        newest_300 = data_list[:300]
-        remaining_data = data_list[300:]
-        random_500 = random.sample(remaining_data, min(500, len(remaining_data))) if remaining_data else []
-        map_display_data = newest_300 + random_500
+        # 🦅 性能优化：150最新 + 150随机 = 300个点，减轻前端 JS 动画压力
+        newest_150 = data_list[:150]
+        remaining_data = data_list[150:]
+        random_150 = random.sample(remaining_data, min(150, len(remaining_data))) if remaining_data else []
+        map_display_data = newest_150 + random_150
 
         for i, item in enumerate(map_display_data):
             lon = item.get('longitude', 0)
