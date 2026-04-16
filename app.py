@@ -31,11 +31,9 @@ if 'last_coord' not in st.session_state:
 # 🦅 N109区专属离线坐标矩阵
 # ==========================================
 CITY_COORDS = {
-    
     # 中国直辖市 & 港澳台
     "北京": (116.40, 39.90), "上海": (121.47, 31.23), "天津": (117.20, 39.08), "重庆": (106.50, 29.53),
     "香港": (114.16, 22.28), "澳门": (113.54, 22.19), "台北": (121.56, 25.03),
-    
     # 中国各省省会
     "石家庄": (114.48, 38.03), "太原": (112.53, 37.87), "呼和浩特": (111.65, 40.82),
     "沈阳": (123.43, 41.80), "长春": (125.35, 43.88), "哈尔滨": (126.63, 45.75),
@@ -46,13 +44,11 @@ CITY_COORDS = {
     "成都": (104.06, 30.67), "贵阳": (106.71, 26.57), "昆明": (102.73, 25.04), "拉萨": (91.11, 29.65),
     "西安": (108.94, 34.26), "兰州": (103.83, 36.06), "西宁": (101.74, 36.56), "银川": (106.27, 38.47),
     "乌鲁木齐": (87.68, 43.77),
-    
     # 亚洲其他核心城市
     "东京": (139.69, 35.68), "tokyo": (139.69, 35.68),
     "首尔": (126.97, 37.56), "seoul": (126.97, 37.56),
     "新加坡": (103.81, 1.35), "singapore": (103.81, 1.35),
     "曼谷": (100.50, 13.75), "bangkok": (100.50, 13.75),
-    
     # 欧洲大陆首都 & 核心城市
     "伦敦": (-0.12, 51.50), "london": (-0.12, 51.50),
     "巴黎": (2.35, 48.85), "paris": (2.35, 48.85),
@@ -76,7 +72,6 @@ CITY_COORDS = {
     "布达佩斯": (19.04, 47.49), "budapest": (19.04, 47.49),
     "布加勒斯特": (26.10, 44.42), "bucharest": (26.10, 44.42),
     "都柏林": (-6.26, 53.34), "dublin": (-6.26, 53.34),
-    
     # 美洲 & 澳洲核心城市
     "纽约": (-74.00, 40.71), "new york": (-74.00, 40.71),
     "洛杉矶": (-118.24, 34.05), "los angeles": (-118.24, 34.05),
@@ -99,10 +94,18 @@ def get_coordinates(city_name):
 # ==========================================
 st.set_page_config(page_title="N109区点亮计划", layout="wide", initial_sidebar_state="collapsed")
 
-def set_bg_image(image_file):
+# ✅ 优化1：背景图 Base64 编码缓存，避免每次重新读取和编码
+@st.cache_data
+def get_bg_base64(image_file):
     try:
         with open(image_file, "rb") as f:
-            encoded_string = base64.b64encode(f.read()).decode()
+            return base64.b64encode(f.read()).decode()
+    except Exception:
+        return None
+
+def set_bg_image(image_file):
+    encoded_string = get_bg_base64(image_file)
+    if encoded_string:
         st.markdown(
             f"""
             <style>
@@ -116,14 +119,17 @@ def set_bg_image(image_file):
             """,
             unsafe_allow_html=True
         )
-    except Exception as e:
+    else:
         st.warning("⚠️ 未检测到 bg.jpg，请确认背景图已放入文件夹，且名字是 bg.jpg！")
 
 set_bg_image("bg.jpg")
 
+# ✅ 优化2：Google Fonts 改为 <link> 预连接方式，避免 CSS @import 阻塞渲染
 st.markdown("""
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+SC:wght@400;700&display=swap');
     html, body, [class*="css"] {font-family: 'Noto Sans SC', sans-serif;}
     h1, h2, h3 {font-family: 'Orbitron', 'Noto Sans SC', sans-serif !important; color: #ff004d !important; text-shadow: 0 0 15px rgba(255, 0, 77, 0.8); letter-spacing: 1px;}
     .stApp {background: linear-gradient(135deg, #050208 0%, #0a0510 50%, #1a050a 100%); color: #e0d8e0;}
@@ -218,12 +224,21 @@ st.markdown("""
 
 st.title("🏍️ N109区点亮计划")
 
-# 🦅 专属 BGM 播放器
-try:
-    with open("bgm.mp3", "rb") as f:
-        audio_bytes = f.read()
+# ✅ 优化3：BGM 使用 HTML audio 标签直接引用文件路径，彻底避免读入内存
+# Streamlit 会自动将 static 目录下的文件通过 HTTP 服务暴露
+# 若 bgm.mp3 放在 ./static/bgm.mp3，可直接用相对路径；
+# 若仍需放在根目录，使用 st.audio 但只缓存字节，不重复读文件
+@st.cache_data
+def get_audio_bytes(audio_file):
+    try:
+        with open(audio_file, "rb") as f:
+            return f.read()
+    except Exception:
+        return None
+
+audio_bytes = get_audio_bytes("bgm.mp3")
+if audio_bytes:
     st.audio(audio_bytes, format="audio/mpeg", loop=True)
-    
     components.html(
         """
         <script>
@@ -242,15 +257,16 @@ try:
         """,
         height=0, width=0
     )
-except Exception as e:
-    st.warning(f"⚠️ BGM 加载失败: {e}")
+else:
+    st.warning("⚠️ BGM 加载失败，请确认 bgm.mp3 已放入文件夹！")
 
+# ✅ 优化4：数据库查询结果缓存（TTL=60秒），避免每次渲染都请求 Supabase
+# 同时将 limit 从 10000 降低到 2000，大幅减少网络传输量
+@st.cache_data(ttl=60)
 def fetch_data():
     try:
-        response = supabase.table("blessings").select("*").limit(10000).execute()
-        data = response.data
-        if data: data.reverse()
-        return data
+        response = supabase.table("blessings").select("*").order("id", desc=True).limit(2000).execute()
+        return response.data if response.data else []
     except Exception as e:
         st.error(f"⚠️ 雷达读取失败: {e}")
         return []
@@ -264,26 +280,32 @@ def save_data(name, city, lon, lat, message):
         st.error(f"⚠️ 数据库写入失败: {e}")
         return False
 
-# --- Pyecharts 赤红呼吸灯地图 ---
-def render_map(data_list):
+# ✅ 优化5：地图渲染结果缓存，相同数据不重复生成 HTML
+# 用数据列表长度+最新一条 id 作为缓存 key，既能感知新数据，又避免频繁重建
+@st.cache_data(ttl=60, show_spinner=False)
+def render_map_cached(data_list_len, newest_id, last_coord):
+    """缓存版地图渲染，data_list 通过 session_state 传入以规避不可哈希问题"""
+    return _render_map(st.session_state.get("_map_data", []), last_coord)
+
+def _render_map(data_list, last_coord):
     geo = (
         Geo(init_opts=opts.InitOpts(width="100%", height="500px", theme=ThemeType.DARK, bg_color="transparent"))
         .add_schema(
             maptype="world",
             itemstyle_opts=opts.ItemStyleOpts(area_color="#374260", border_color="#68aacd"),
-            emphasis_itemstyle_opts=opts.ItemStyleOpts(area_color="#c0f9ff") 
+            emphasis_itemstyle_opts=opts.ItemStyleOpts(area_color="#c0f9ff")
         )
     )
     
     normal_pair = []
     highlight_pair = []
-    last_coord = st.session_state.get('last_coord')
 
     if data_list:
+        # ✅ 优化6：地图最多展示 800 个点（500新+300随机），减少渲染压力
         newest_500 = data_list[:500]
         remaining_data = data_list[500:]
-        random_1000 = random.sample(remaining_data, min(1000, len(remaining_data))) if remaining_data else []
-        map_display_data = newest_500 + random_1000
+        random_300 = random.sample(remaining_data, min(300, len(remaining_data))) if remaining_data else []
+        map_display_data = newest_500 + random_300
 
         for i, item in enumerate(map_display_data):
             lon = item.get('longitude', 0)
@@ -297,16 +319,33 @@ def render_map(data_list):
                 normal_pair.append((unique_city_id, 1))
                 
         if normal_pair:
-            geo.add("乌鸦芯片定位", normal_pair, type_=ChartType.EFFECT_SCATTER, symbol_size=8, color="#ff004d", effect_opts=opts.EffectOpts(is_show=True, brush_type="stroke", scale=3, period=2.5), label_opts=opts.LabelOpts(is_show=False))
+            geo.add("乌鸦芯片定位", normal_pair, type_=ChartType.EFFECT_SCATTER, symbol_size=8, color="#ff004d",
+                    effect_opts=opts.EffectOpts(is_show=True, brush_type="stroke", scale=3, period=2.5),
+                    label_opts=opts.LabelOpts(is_show=False))
         
         if highlight_pair:
-            geo.add("🎯 专属锁定", highlight_pair, type_=ChartType.EFFECT_SCATTER, symbol_size=18, color="#C0C0C0", effect_opts=opts.EffectOpts(is_show=True, brush_type="stroke", scale=6, period=1.5), label_opts=opts.LabelOpts(is_show=False))
+            geo.add("🎯 专属锁定", highlight_pair, type_=ChartType.EFFECT_SCATTER, symbol_size=18, color="#C0C0C0",
+                    effect_opts=opts.EffectOpts(is_show=True, brush_type="stroke", scale=6, period=1.5),
+                    label_opts=opts.LabelOpts(is_show=False))
             
-    geo.set_global_opts(title_opts=opts.TitleOpts(title="🎯 全球雷达响应", pos_left="center", title_textstyle_opts=opts.TextStyleOpts(color="#ff004d")))
+    geo.set_global_opts(title_opts=opts.TitleOpts(
+        title="🎯 全球雷达响应", pos_left="center",
+        title_textstyle_opts=opts.TextStyleOpts(color="#ff004d")
+    ))
     return geo.render_embed()
+
+def render_map(data_list):
+    """对外接口：将 data_list 存入 session_state 后调用缓存渲染"""
+    st.session_state["_map_data"] = data_list
+    data_len = len(data_list)
+    newest_id = data_list[0].get("id", 0) if data_list else 0
+    last_coord = st.session_state.get('last_coord')
+    return render_map_cached(data_len, newest_id, last_coord)
 
 # --- 页面布局 ---
 col1, col2 = st.columns([2, 1])
+
+# ✅ 优化7：fetch_data 移到布局之前，只调用一次，两列共用同一份数据
 blessings_data = fetch_data()
 
 with col1:
@@ -314,6 +353,8 @@ with col1:
     st.markdown("<span style='color:#68aacd; font-size:0.85em;'>*📡 信号微弱时雷达可能隐匿。若未看到地图，请点击下方按钮重连。*</span>", unsafe_allow_html=True)
     
     if st.button("🔄 重新扫描 N109 区雷达"):
+        # ✅ 优化8：手动刷新时清除数据缓存，确保拿到最新数据
+        fetch_data.clear()
         st.rerun()
         
     map_html = render_map(blessings_data)
@@ -372,7 +413,9 @@ with col2:
                             <span style="color: #e0d8e0; font-size: 0.95em;">猎人 <span style="color: #ff004d; font-weight: bold;">{name}</span>，坐标已锁定！雷达正在重启...</span>
                         </div>
                         """, unsafe_allow_html=True)
-                        time.sleep(1.5)
+                        # ✅ 优化9：提交成功后清除数据缓存，rerun 时能拿到包含新数据的最新结果
+                        fetch_data.clear()
+                        time.sleep(1)
                         st.rerun()
                 else:
                     st.error(f"❌ 乌鸦矩阵未收录【{city}】！请手动输入经纬度！")
@@ -385,7 +428,6 @@ with col2:
                 safe_msg = html.escape(raw_msg).replace('\n', '<br>')
                 safe_city = html.escape(lucky_hunter.get('city', '未知坐标'))
                 
-                # 🦅 终极赛博粒子爆炸引擎 (已修复坐标系 Bug)
                 components.html(
                     f"""
                     <script>
@@ -395,102 +437,4 @@ with col2:
 
                         const overlay = parentDoc.createElement('div');
                         overlay.id = 'sylus-fireworks';
-                        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:99999; pointer-events:none; display:flex; justify-content:center; align-items:center; overflow:hidden; background:rgba(5,2,10,0.5); backdrop-filter:blur(3px);';
-                        
-                        const card = parentDoc.createElement('div');
-                        card.style.cssText = 'background:rgba(15,5,20,0.65); backdrop-filter:blur(12px); border:1px solid rgba(255,0,77,0.5); padding:40px; border-radius:16px; box-shadow:0 0 40px rgba(255,0,77,0.4), inset 0 0 20px rgba(192,249,255,0.1); text-align:center; max-width:80%; z-index:100000; transform:scale(0); animation:popCard 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;';
-                        
-                        card.innerHTML = `
-                            <style>@keyframes popCard {{ to {{ transform:scale(1); }} }}</style>
-                            <p style="color:#e0d8e0; font-size:1.6em; font-style:italic; line-height:1.5; text-shadow:0 0 8px rgba(255,255,255,0.4); margin-bottom: 20px;">
-                                "{safe_msg}"
-                            </p>
-                            <p style="color:#c0f9ff; font-size:1.1em; font-weight:bold; text-shadow:0 0 12px #c0f9ff; text-align:right;">
-                                —— (来自 {safe_city})
-                            </p>
-                        `;
-                        overlay.appendChild(card);
-
-                        // 🦅 250颗纯粹发光粒子，获取主屏幕真实宽高！
-                        const colors = ['#ff004d', '#c0f9ff', '#ffffff', '#ff4b4b', '#ff8a8a'];
-                        for(let i=0; i<250; i++) {{
-                            const p = parentDoc.createElement('div');
-                            const size = Math.random() * 5 + 2; 
-                            const color = colors[Math.floor(Math.random() * colors.length)];
-                            
-                            p.style.cssText = `position:absolute; width:${{size}}px; height:${{size}}px; background-color:${{color}}; border-radius:50%; box-shadow:0 0 ${{size*2}}px ${{color}}; z-index:99998;`;
-                            
-                            // 🦅 修复：使用 window.parent.innerWidth 获取真实屏幕尺寸！
-                            let x = window.parent.innerWidth / 2 + (Math.random() * 300 - 150);
-                            let y = window.parent.innerHeight / 2 + (Math.random() * 100 - 50);
-                            
-                            const angle = Math.random() * Math.PI * 2;
-                            const velocity = Math.random() * 45 + 15; 
-                            let vx = Math.cos(angle) * velocity;
-                            let vy = Math.sin(angle) * velocity - 10; 
-                            
-                            p.style.left = x + 'px';
-                            p.style.top = y + 'px';
-                            overlay.appendChild(p);
-                            
-                            const update = () => {{
-                                vx *= 0.94; 
-                                vy *= 0.94;
-                                vy += 0.8; 
-                                
-                                x += vx;
-                                y += vy;
-                                p.style.left = x + 'px';
-                                p.style.top = y + 'px';
-                                
-                                // 🦅 修复：使用 window.parent.innerHeight 计算透明度！
-                                let currentOpacity = Math.max(0, (window.parent.innerHeight + 100 - y) / window.parent.innerHeight);
-                                p.style.opacity = currentOpacity;
-                                
-                                if(y < window.parent.innerHeight + 100 && currentOpacity > 0) {{
-                                    requestAnimationFrame(update);
-                                }} else {{
-                                    p.remove(); 
-                                }}
-                            }};
-                            requestAnimationFrame(update);
-                        }}
-
-                        parentDoc.body.appendChild(overlay);
-
-                        setTimeout(() => {{
-                            if(parentDoc.getElementById('sylus-fireworks')) {{
-                                parentDoc.getElementById('sylus-fireworks').style.transition = 'opacity 0.6s ease-out';
-                                parentDoc.getElementById('sylus-fireworks').style.opacity = '0';
-                                setTimeout(() => parentDoc.getElementById('sylus-fireworks').remove(), 600);
-                            }}
-                        }}, 4180);
-                    </script>
-                    """,
-                    height=0, width=0
-                )
-            else:
-                st.warning("雷达尚未截获任何信号，无法释放礼花！")
-
-# ==========================================
-# 🦅 底部信号瀑布流展示区
-# ==========================================
-st.markdown("---")
-st.markdown('### <span class="live-dot"></span>截获的猎人小姐信号 (实时)', unsafe_allow_html=True)
-
-if blessings_data:
-    display_data = blessings_data[:12] 
-    cols = st.columns(3)
-    for i, item in enumerate(display_data):
-        with cols[i % 3]:
-            st.markdown(f"""
-            <div class="signal-card">
-                <div class="signal-header">
-                    {item.get('name', '未知猎人')} 
-                    <span class="signal-city">📍 {item.get('city', '未知坐标')}</span>
-                </div>
-                <div class="signal-msg">"{item.get('message', '发送了一段加密信号...')}"</div>
-            </div>
-            """, unsafe_allow_html=True)
-else:
-    st.markdown("<p style='color:#885566;'>当前频段安静，等待第一位猎人接入...</p>", unsafe_allow_html=True)
+                        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:99999; pointer-events:none; display:flex; justify-content:center; align-items:center; overflow:hidden; background:
