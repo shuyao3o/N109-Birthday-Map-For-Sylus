@@ -198,6 +198,10 @@ try:
 except Exception as e:
     st.warning(f"⚠️ BGM 加载失败: {e}")
 
+# ==========================================
+# 🦅 核心优化：时空缓存魔法！每 60 秒才拉取一次数据，极大减轻服务器压力！
+# ==========================================
+@st.cache_data(ttl=60)
 def fetch_data():
     try:
         response = supabase.table("blessings").select("*").limit(10000).execute()
@@ -205,7 +209,6 @@ def fetch_data():
         if data: data.reverse()
         return data
     except Exception as e:
-        st.error(f"⚠️ 雷达读取失败: {e}")
         return []
 
 def save_data(name, city, lon, lat, message):
@@ -217,7 +220,7 @@ def save_data(name, city, lon, lat, message):
         st.error(f"⚠️ 数据库写入失败: {e}")
         return False
 
-# --- Pyecharts 赤红呼吸灯地图 ---
+# --- Pyecharts 赤红呼吸灯地图 (性能减负版) ---
 def render_map(data_list):
     geo = (
         Geo(init_opts=opts.InitOpts(width="100%", height="500px", theme=ThemeType.DARK, bg_color="transparent"))
@@ -233,10 +236,11 @@ def render_map(data_list):
     last_coord = st.session_state.get('last_coord')
 
     if data_list:
-        newest_500 = data_list[:500]
-        remaining_data = data_list[500:]
-        random_1000 = random.sample(remaining_data, min(1000, len(remaining_data))) if remaining_data else []
-        map_display_data = newest_500 + random_1000
+        # 🦅 核心优化：渲染点降至 800 个，保证手机端绝对丝滑，且视觉依然壮观！
+        newest_300 = data_list[:300]
+        remaining_data = data_list[300:]
+        random_500 = random.sample(remaining_data, min(500, len(remaining_data))) if remaining_data else []
+        map_display_data = newest_300 + random_500
 
         for i, item in enumerate(map_display_data):
             lon = item.get('longitude', 0)
@@ -318,6 +322,9 @@ with col2:
 
                     success = save_data(name, city, final_lon, final_lat, message)
                     if success:
+                        # 🦅 核心优化：提交成功后，瞬间清空缓存，保证新坐标立刻显示！
+                        fetch_data.clear()
+                        
                         st.session_state['last_coord'] = (final_lon, final_lat)
                         st.markdown(f"""
                         <div style="background: rgba(21, 10, 31, 0.8); border: 1px solid #c0f9ff; border-left: 4px solid #c0f9ff; padding: 15px; border-radius: 4px; box-shadow: 0 0 15px rgba(192, 249, 255, 0.2); margin-bottom: 15px;">
@@ -338,7 +345,6 @@ with col2:
                 safe_msg = html.escape(raw_msg).replace('\n', '<br>')
                 safe_city = html.escape(lucky_hunter.get('city', '未知坐标'))
                 
-                # 🦅 终极赛博粒子爆炸引擎 (已修复坐标系 Bug)
                 components.html(
                     f"""
                     <script>
@@ -364,7 +370,6 @@ with col2:
                         `;
                         overlay.appendChild(card);
 
-                        // 🦅 250颗纯粹发光粒子，获取主屏幕真实宽高！
                         const colors = ['#ff004d', '#c0f9ff', '#ffffff', '#ff4b4b', '#ff8a8a'];
                         for(let i=0; i<250; i++) {{
                             const p = parentDoc.createElement('div');
@@ -373,7 +378,6 @@ with col2:
                             
                             p.style.cssText = `position:absolute; width:${{size}}px; height:${{size}}px; background-color:${{color}}; border-radius:50%; box-shadow:0 0 ${{size*2}}px ${{color}}; z-index:99998;`;
                             
-                            // 🦅 修复：使用 window.parent.innerWidth 获取真实屏幕尺寸！
                             let x = window.parent.innerWidth / 2 + (Math.random() * 300 - 150);
                             let y = window.parent.innerHeight / 2 + (Math.random() * 100 - 50);
                             
@@ -396,7 +400,6 @@ with col2:
                                 p.style.left = x + 'px';
                                 p.style.top = y + 'px';
                                 
-                                // 🦅 修复：使用 window.parent.innerHeight 计算透明度！
                                 let currentOpacity = Math.max(0, (window.parent.innerHeight + 100 - y) / window.parent.innerHeight);
                                 p.style.opacity = currentOpacity;
                                 
