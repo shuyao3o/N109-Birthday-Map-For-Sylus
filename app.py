@@ -10,7 +10,7 @@ from supabase import create_client, Client
 import random
 
 # ==========================================
-# 🔴 Supabase 密钥配置
+# 🔴 猎人请注意：填入你的 Supabase 密钥！
 # ==========================================
 SUPABASE_URL = "https://yqggxqllcutqatwjxmyx.supabase.co"
 SUPABASE_KEY = "sb_publishable_66sM5garleFYSyoxfoBizg_WeoUpnAy"
@@ -21,9 +21,15 @@ def init_connection():
 
 supabase: Client = init_connection()
 
+# ==========================================
+# 🧠 注入雷达记忆模块 (用于专属高亮)
+# ==========================================
 if 'last_coord' not in st.session_state:
     st.session_state['last_coord'] = None
 
+# ==========================================
+# 🦅 N109区专属离线坐标矩阵
+# ==========================================
 CITY_COORDS = {
     "临空市": (119.00, 32.00), "伦敦": (-0.12, 51.50), "纽约": (-74.00, 40.71),
     "东京": (139.69, 35.68), "巴黎": (2.35, 48.85), "首尔": (126.97, 37.56),
@@ -41,6 +47,9 @@ def get_coordinates(city_name):
         return CITY_COORDS[city_lower]
     return None, None
 
+# ==========================================
+# 🎨 N109区机车霓虹版 UI 深度定制
+# ==========================================
 st.set_page_config(page_title="N109区点亮计划", layout="wide", initial_sidebar_state="collapsed")
 
 def set_bg_image(image_file):
@@ -61,7 +70,7 @@ def set_bg_image(image_file):
             unsafe_allow_html=True
         )
     except Exception as e:
-        pass
+        st.warning("⚠️ 未检测到 bg.jpg，请确认背景图已放入文件夹，且名字是 bg.jpg！")
 
 set_bg_image("bg.jpg")
 
@@ -73,8 +82,7 @@ st.markdown("""
     .stApp {background: linear-gradient(135deg, #050208 0%, #0a0510 50%, #1a050a 100%); color: #e0d8e0;}
     
     [data-baseweb="input"], [data-baseweb="input"] > div, [data-baseweb="input"] input,
-    [data-baseweb="textarea"], [data-baseweb="textarea"] > div, [data-baseweb="textarea"] textarea,
-    [data-baseweb="select"] > div {
+    [data-baseweb="textarea"], [data-baseweb="textarea"] > div, [data-baseweb="textarea"] textarea {
         background-color: rgba(21, 10, 31, 0.8) !important;
         color: #ffb3c6 !important;
         -webkit-text-fill-color: #ffb3c6 !important; 
@@ -143,7 +151,7 @@ st.markdown("""
     
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
     
-    .stTextInput label p, .stTextArea label p, .stNumberInput label p, .stSelectbox label p {
+    .stTextInput label p, .stTextArea label p, .stNumberInput label p {
         color: #c0f9ff !important; 
         text-shadow: 0 0 8px rgba(192, 249, 255, 0.6) !important; 
         font-weight: bold !important;
@@ -162,6 +170,7 @@ st.markdown("""
 
 st.title("🏍️ N109区点亮计划")
 
+# 🦅 专属 BGM 播放器
 try:
     with open("bgm.mp3", "rb") as f:
         audio_bytes = f.read()
@@ -171,12 +180,8 @@ try:
         """
         <script>
             const setVolume = () => {
-                try {
-                    const audios = window.parent.document.querySelectorAll('audio');
-                    audios.forEach(a => { a.volume = 0.5; });
-                } catch (e) {
-                    console.log("移动端音量控制被拦截，已忽略");
-                }
+                const audios = window.parent.document.querySelectorAll('audio');
+                audios.forEach(a => { a.volume = 0.5; });
             };
             setTimeout(setVolume, 100);
             setTimeout(setVolume, 500);
@@ -186,23 +191,20 @@ try:
         height=0, width=0
     )
 except Exception as e:
-    pass
+    st.warning(f"⚠️ BGM 加载失败: {e}")
 
 # ==========================================
-# 🦅 极限防崩溃优化：缓存 5 分钟，拉取 5000 条样本池！
+# 🦅 核心修复：按 created_at 倒序拉取，完美契合你的数据库！
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_data():
     try:
-        # 🦅 核心修复：按 created_at (时间) 倒序拉取，完美匹配你的数据库！
         response = supabase.table("blessings").select("*").order("created_at", desc=True).limit(5000).execute()
         data = response.data
         return data
     except Exception as e:
-        st.error(f"⚠️ 雷达读取失败，真实原因: {e}")
+        st.error(f"⚠️ 雷达读取失败: {e}")
         return []
-
-
 
 def save_data(name, city, lon, lat, message):
     try:
@@ -213,6 +215,7 @@ def save_data(name, city, lon, lat, message):
         st.error(f"⚠️ 数据库写入失败: {e}")
         return False
 
+# --- Pyecharts 赤红呼吸灯地图 (双层特效升级版) ---
 def render_map(data_list):
     geo = (
         Geo(init_opts=opts.InitOpts(width="100%", height="500px", theme=ThemeType.DARK, bg_color="transparent"))
@@ -228,12 +231,10 @@ def render_map(data_list):
     last_coord = st.session_state.get('last_coord')
 
     if data_list:
-        # 🦅 黄金比例渲染：最新的 300 个 + 随机抽取的 500 个 = 800 个点！
+        # 🦅 黄金比例：300最新 + 500随机 = 800个点
         newest_300 = data_list[:300]
         remaining_data = data_list[300:]
         random_500 = random.sample(remaining_data, min(500, len(remaining_data))) if remaining_data else []
-        
-        # 最终交给手机渲染的只有这 800 个点，绝对丝滑！
         map_display_data = newest_300 + random_500
 
         for i, item in enumerate(map_display_data):
@@ -256,11 +257,13 @@ def render_map(data_list):
     geo.set_global_opts(title_opts=opts.TitleOpts(title="🎯 全球雷达响应", pos_left="center", title_textstyle_opts=opts.TextStyleOpts(color="#ff004d")))
     return geo.render_embed()
 
+# --- 页面布局 ---
 col1, col2 = st.columns([2, 1])
 blessings_data = fetch_data()
 
 with col1:
     st.markdown("### 🔴 为你闪烁的满城夜色")
+    
     st.markdown("<span style='color:#68aacd; font-size:0.85em;'>*📡 信号微弱时雷达可能隐匿。若未看到地图，请点击下方按钮重连。*</span>", unsafe_allow_html=True)
     
     if st.button("🔄 重新扫描 N109 区雷达"):
@@ -336,18 +339,26 @@ with col2:
                 safe_msg = html.escape(raw_msg).replace('\n', '<br>')
                 safe_city = html.escape(lucky_hunter.get('city', '未知坐标'))
                 
+                # 🦅 终极修复：全屏结界魔法！彻底解决粒子看不见的问题！
                 components.html(
                     f"""
                     <script>
-                        const parentDoc = window.parent.document;
-                        const oldOverlay = parentDoc.getElementById('sylus-fireworks');
-                        if(oldOverlay) oldOverlay.remove();
+                        // 瞬间将当前隐藏的 iframe 放大到全屏，突破所有框架限制！
+                        const frame = window.frameElement;
+                        if (frame) {{
+                            frame.style.position = 'fixed';
+                            frame.style.top = '0';
+                            frame.style.left = '0';
+                            frame.style.width = '100vw';
+                            frame.style.height = '100vh';
+                            frame.style.zIndex = '99999';
+                        }}
 
-                        const overlay = parentDoc.createElement('div');
+                        const overlay = document.createElement('div');
                         overlay.id = 'sylus-fireworks';
-                        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:99999; pointer-events:none; display:flex; justify-content:center; align-items:center; overflow:hidden; background:rgba(5,2,10,0.5); backdrop-filter:blur(3px);';
+                        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; display:flex; justify-content:center; align-items:center; overflow:hidden; background:rgba(5,2,10,0.5); backdrop-filter:blur(3px);';
                         
-                        const card = parentDoc.createElement('div');
+                        const card = document.createElement('div');
                         card.style.cssText = 'background:rgba(15,5,20,0.65); backdrop-filter:blur(12px); border:1px solid rgba(255,0,77,0.5); padding:40px; border-radius:16px; box-shadow:0 0 40px rgba(255,0,77,0.4), inset 0 0 20px rgba(192,249,255,0.1); text-align:center; max-width:80%; z-index:100000; transform:scale(0); animation:popCard 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;';
                         
                         card.innerHTML = `
@@ -363,14 +374,14 @@ with col2:
 
                         const colors = ['#ff004d', '#c0f9ff', '#ffffff', '#ff4b4b', '#ff8a8a'];
                         for(let i=0; i<250; i++) {{
-                            const p = parentDoc.createElement('div');
+                            const p = document.createElement('div');
                             const size = Math.random() * 5 + 2; 
                             const color = colors[Math.floor(Math.random() * colors.length)];
                             
                             p.style.cssText = `position:absolute; width:${{size}}px; height:${{size}}px; background-color:${{color}}; border-radius:50%; box-shadow:0 0 ${{size*2}}px ${{color}}; z-index:99998;`;
                             
-                            let x = window.parent.innerWidth / 2 + (Math.random() * 300 - 150);
-                            let y = window.parent.innerHeight / 2 + (Math.random() * 100 - 50);
+                            let x = window.innerWidth / 2 + (Math.random() * 300 - 150);
+                            let y = window.innerHeight / 2 + (Math.random() * 100 - 50);
                             
                             const angle = Math.random() * Math.PI * 2;
                             const velocity = Math.random() * 45 + 15; 
@@ -391,10 +402,10 @@ with col2:
                                 p.style.left = x + 'px';
                                 p.style.top = y + 'px';
                                 
-                                let currentOpacity = Math.max(0, (window.parent.innerHeight + 100 - y) / window.parent.innerHeight);
+                                let currentOpacity = Math.max(0, (window.innerHeight + 100 - y) / window.innerHeight);
                                 p.style.opacity = currentOpacity;
                                 
-                                if(y < window.parent.innerHeight + 100 && currentOpacity > 0) {{
+                                if(y < window.innerHeight + 100 && currentOpacity > 0) {{
                                     requestAnimationFrame(update);
                                 }} else {{
                                     p.remove(); 
@@ -403,14 +414,21 @@ with col2:
                             requestAnimationFrame(update);
                         }}
 
-                        parentDoc.body.appendChild(overlay);
+                        document.body.appendChild(overlay);
 
                         setTimeout(() => {{
-                            if(parentDoc.getElementById('sylus-fireworks')) {{
-                                parentDoc.getElementById('sylus-fireworks').style.transition = 'opacity 0.6s ease-out';
-                                parentDoc.getElementById('sylus-fireworks').style.opacity = '0';
-                                setTimeout(() => parentDoc.getElementById('sylus-fireworks').remove(), 600);
-                            }}
+                            overlay.style.transition = 'opacity 0.6s ease-out';
+                            overlay.style.opacity = '0';
+                            setTimeout(() => {{
+                                overlay.remove();
+                                // 🦅 动画结束后，瞬间解除全屏结界，恢复网页正常点击！
+                                if (frame) {{
+                                    frame.style.position = 'static';
+                                    frame.style.width = '0';
+                                    frame.style.height = '0';
+                                    frame.style.zIndex = '-1';
+                                }}
+                            }}, 600);
                         }}, 4180);
                     </script>
                     """,
@@ -419,6 +437,9 @@ with col2:
             else:
                 st.warning("雷达尚未截获任何信号，无法释放礼花！")
 
+# ==========================================
+# 🦅 底部信号瀑布流展示区
+# ==========================================
 st.markdown("---")
 st.markdown('### <span class="live-dot"></span>截获的猎人小姐信号 (实时)', unsafe_allow_html=True)
 
