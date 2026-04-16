@@ -31,7 +31,7 @@ if 'last_coord' not in st.session_state:
 # 🦅 N109区专属离线坐标矩阵
 # ==========================================
 CITY_COORDS = {
-    "临空市": (121.47, 31.23), "伦敦": (-0.12, 51.50), "纽约": (-74.00, 40.71),
+    "临空市": (119.00, 32.00), "伦敦": (-0.12, 51.50), "纽约": (-74.00, 40.71),
     "东京": (139.69, 35.68), "巴黎": (2.35, 48.85), "首尔": (126.97, 37.56),
     "北京": (116.40, 39.90), "上海": (121.47, 31.23), "广州": (113.26, 23.12),
     "深圳": (114.05, 22.52), "成都": (104.06, 30.67), "重庆": (106.50, 29.53),
@@ -198,16 +198,11 @@ try:
 except Exception as e:
     st.warning(f"⚠️ BGM 加载失败: {e}")
 
-# ==========================================
-# 🚀 极速引擎：按时间倒序拉取 5000 条，供后续“500最新+1000随机”使用！
-# ==========================================
 def fetch_data():
     try:
-        # 🦅 核心修复：加上 .order("created_at", desc=True)，确保拉取的是最新数据！
-        # 拉取 5000 条作为数据池，既不会卡死，又能保证随机抽取的丰富度
-        response = supabase.table("blessings").select("*").order("created_at", desc=True).limit(5000).execute()
+        response = supabase.table("blessings").select("*").limit(10000).execute()
         data = response.data
-        # ⚠️ 注意：因为已经倒序了，最新的就在最前面，千万不要再加 data.reverse() 了！
+        if data: data.reverse()
         return data
     except Exception as e:
         st.error(f"⚠️ 雷达读取失败: {e}")
@@ -238,7 +233,6 @@ def render_map(data_list):
     last_coord = st.session_state.get('last_coord')
 
     if data_list:
-        # 🦅 完美执行主控猎人的神级策略：500最新 + 1000随机
         newest_500 = data_list[:500]
         remaining_data = data_list[500:]
         random_1000 = random.sample(remaining_data, min(1000, len(remaining_data))) if remaining_data else []
@@ -344,7 +338,7 @@ with col2:
                 safe_msg = html.escape(raw_msg).replace('\n', '<br>')
                 safe_city = html.escape(lucky_hunter.get('city', '未知坐标'))
                 
-                # 🦅 终极赛博粒子爆炸引擎
+                # 🦅 终极赛博粒子爆炸引擎 (已修复坐标系 Bug)
                 components.html(
                     f"""
                     <script>
@@ -370,6 +364,7 @@ with col2:
                         `;
                         overlay.appendChild(card);
 
+                        // 🦅 250颗纯粹发光粒子，获取主屏幕真实宽高！
                         const colors = ['#ff004d', '#c0f9ff', '#ffffff', '#ff4b4b', '#ff8a8a'];
                         for(let i=0; i<250; i++) {{
                             const p = parentDoc.createElement('div');
@@ -378,6 +373,7 @@ with col2:
                             
                             p.style.cssText = `position:absolute; width:${{size}}px; height:${{size}}px; background-color:${{color}}; border-radius:50%; box-shadow:0 0 ${{size*2}}px ${{color}}; z-index:99998;`;
                             
+                            // 🦅 修复：使用 window.parent.innerWidth 获取真实屏幕尺寸！
                             let x = window.parent.innerWidth / 2 + (Math.random() * 300 - 150);
                             let y = window.parent.innerHeight / 2 + (Math.random() * 100 - 50);
                             
@@ -400,6 +396,7 @@ with col2:
                                 p.style.left = x + 'px';
                                 p.style.top = y + 'px';
                                 
+                                // 🦅 修复：使用 window.parent.innerHeight 计算透明度！
                                 let currentOpacity = Math.max(0, (window.parent.innerHeight + 100 - y) / window.parent.innerHeight);
                                 p.style.opacity = currentOpacity;
                                 
