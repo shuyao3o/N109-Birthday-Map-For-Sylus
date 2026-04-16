@@ -28,10 +28,10 @@ if 'last_coord' not in st.session_state:
     st.session_state['last_coord'] = None
 
 # ==========================================
-# 🦅 N109区专属离线坐标矩阵
+# 🦅 N109区专属离线坐标矩阵 (临空市已锚定上海)
 # ==========================================
 CITY_COORDS = {
-    "临空市": (119.00, 32.00), "伦敦": (-0.12, 51.50), "纽约": (-74.00, 40.71),
+    "临空市": (121.47, 31.23), "伦敦": (-0.12, 51.50), "纽约": (-74.00, 40.71),
     "东京": (139.69, 35.68), "巴黎": (2.35, 48.85), "首尔": (126.97, 37.56),
     "北京": (116.40, 39.90), "上海": (121.47, 31.23), "广州": (113.26, 23.12),
     "深圳": (114.05, 22.52), "成都": (104.06, 30.67), "重庆": (106.50, 29.53),
@@ -199,15 +199,14 @@ except Exception as e:
     st.warning(f"⚠️ BGM 加载失败: {e}")
 
 # ==========================================
-# 🚀 极速引擎：加入 60 秒记忆缓存，极大减轻数据库压力！
+# 🚀 极速引擎：直接让数据库排序并只返回最新的 1500 条！
 # ==========================================
 @st.cache_data(ttl=60)
 def fetch_data():
     try:
-        # 限制拉取 5000 条，防止内存撑爆，反正地图最多渲染 1500 个
-        response = supabase.table("blessings").select("*").limit(5000).execute()
+        # 🦅 核心优化：直接在数据库层面倒序排列，并只拉取 1500 条！极大降低网络和内存压力！
+        response = supabase.table("blessings").select("*").order("id", desc=True).limit(1500).execute()
         data = response.data
-        if data: data.reverse()
         return data
     except Exception as e:
         st.error(f"⚠️ 雷达读取失败: {e}")
@@ -238,12 +237,8 @@ def render_map(data_list):
     last_coord = st.session_state.get('last_coord')
 
     if data_list:
-        newest_500 = data_list[:500]
-        remaining_data = data_list[500:]
-        random_1000 = random.sample(remaining_data, min(1000, len(remaining_data))) if remaining_data else []
-        map_display_data = newest_500 + random_1000
-
-        for i, item in enumerate(map_display_data):
+        # 因为 fetch_data 已经只拉了最新的 1500 条，这里直接全部渲染即可
+        for i, item in enumerate(data_list):
             lon = item.get('longitude', 0)
             lat = item.get('latitude', 0)
             unique_city_id = f"{item.get('city', 'Unknown')}_{i}"
@@ -346,7 +341,7 @@ with col2:
                 safe_msg = html.escape(raw_msg).replace('\n', '<br>')
                 safe_city = html.escape(lucky_hunter.get('city', '未知坐标'))
                 
-                # 🦅 终极赛博粒子爆炸引擎 (已修复坐标系 Bug)
+                # 🦅 终极赛博粒子爆炸引擎
                 components.html(
                     f"""
                     <script>
@@ -372,7 +367,6 @@ with col2:
                         `;
                         overlay.appendChild(card);
 
-                        // 🦅 250颗纯粹发光粒子，获取主屏幕真实宽高！
                         const colors = ['#ff004d', '#c0f9ff', '#ffffff', '#ff4b4b', '#ff8a8a'];
                         for(let i=0; i<250; i++) {{
                             const p = parentDoc.createElement('div');
