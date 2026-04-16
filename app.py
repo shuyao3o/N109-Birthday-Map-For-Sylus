@@ -198,9 +198,14 @@ try:
 except Exception as e:
     st.warning(f"⚠️ BGM 加载失败: {e}")
 
+# ==========================================
+# 🚀 极速引擎：加入 60 秒记忆缓存，极大减轻数据库压力！
+# ==========================================
+@st.cache_data(ttl=60)
 def fetch_data():
     try:
-        response = supabase.table("blessings").select("*").limit(10000).execute()
+        # 限制拉取 5000 条，防止内存撑爆，反正地图最多渲染 1500 个
+        response = supabase.table("blessings").select("*").limit(5000).execute()
         data = response.data
         if data: data.reverse()
         return data
@@ -318,6 +323,9 @@ with col2:
 
                     success = save_data(name, city, final_lon, final_lat, message)
                     if success:
+                        # 🚀 核心魔法：提交成功后，立刻清空缓存，保证玩家能瞬间看到自己的坐标！
+                        fetch_data.clear()
+                        
                         st.session_state['last_coord'] = (final_lon, final_lat)
                         st.markdown(f"""
                         <div style="background: rgba(21, 10, 31, 0.8); border: 1px solid #c0f9ff; border-left: 4px solid #c0f9ff; padding: 15px; border-radius: 4px; box-shadow: 0 0 15px rgba(192, 249, 255, 0.2); margin-bottom: 15px;">
@@ -373,7 +381,6 @@ with col2:
                             
                             p.style.cssText = `position:absolute; width:${{size}}px; height:${{size}}px; background-color:${{color}}; border-radius:50%; box-shadow:0 0 ${{size*2}}px ${{color}}; z-index:99998;`;
                             
-                            // 🦅 修复：使用 window.parent.innerWidth 获取真实屏幕尺寸！
                             let x = window.parent.innerWidth / 2 + (Math.random() * 300 - 150);
                             let y = window.parent.innerHeight / 2 + (Math.random() * 100 - 50);
                             
@@ -396,7 +403,6 @@ with col2:
                                 p.style.left = x + 'px';
                                 p.style.top = y + 'px';
                                 
-                                // 🦅 修复：使用 window.parent.innerHeight 计算透明度！
                                 let currentOpacity = Math.max(0, (window.parent.innerHeight + 100 - y) / window.parent.innerHeight);
                                 p.style.opacity = currentOpacity;
                                 
