@@ -194,14 +194,14 @@ except Exception as e:
 @st.cache_data(ttl=300)
 def fetch_data():
     try:
-        # 拉取 5000 条作为样本池
-        response = supabase.table("blessings").select("*").order("id", desc=True).limit(5000).execute()
+        # 🦅 核心修复：按 created_at (时间) 倒序拉取，完美匹配你的数据库！
+        response = supabase.table("blessings").select("*").order("created_at", desc=True).limit(5000).execute()
         data = response.data
         return data
     except Exception as e:
-        # 🦅 强制让隐形报错显形！
         st.error(f"⚠️ 雷达读取失败，真实原因: {e}")
         return []
+
 
 
 def save_data(name, city, lon, lat, message):
