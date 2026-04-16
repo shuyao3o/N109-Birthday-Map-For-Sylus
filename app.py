@@ -10,12 +10,7 @@ from supabase import create_client, Client
 import random
 
 # ==========================================
-# 🎨 页面基础设置 (必须在所有 st. 方法之前调用)
-# ==========================================
-st.set_page_config(page_title="N109区点亮计划", layout="wide", initial_sidebar_state="collapsed")
-
-# ==========================================
-# 🔴 猎人请注意：填入你的 Supabase 密钥！
+# 🔴 Supabase 密钥配置
 # ==========================================
 SUPABASE_URL = "https://yqggxqllcutqatwjxmyx.supabase.co"
 SUPABASE_KEY = "sb_publishable_66sM5garleFYSyoxfoBizg_WeoUpnAy"
@@ -36,8 +31,6 @@ if 'last_coord' not in st.session_state:
 # 🦅 N109区专属离线坐标矩阵
 # ==========================================
 CITY_COORDS = {
-    # 狸花回家
-    "临空市": (121.47, 31.23), "linkong": (121.47, 31.23),
     
     # 中国直辖市 & 港澳台
     "北京": (116.40, 39.90), "上海": (121.47, 31.23), "天津": (117.20, 39.08), "重庆": (106.50, 29.53),
@@ -104,16 +97,12 @@ def get_coordinates(city_name):
 # ==========================================
 # 🎨 N109区机车霓虹版 UI 深度定制
 # ==========================================
-
-# 性能优化：将背景图片缓存到内存，不再每次读取
-@st.cache_data
-def get_base64_image(image_file):
-    with open(image_file, "rb") as f:
-        return base64.b64encode(f.read()).decode()
+st.set_page_config(page_title="N109区点亮计划", layout="wide", initial_sidebar_state="collapsed")
 
 def set_bg_image(image_file):
     try:
-        encoded_string = get_base64_image(image_file)
+        with open(image_file, "rb") as f:
+            encoded_string = base64.b64encode(f.read()).decode()
         st.markdown(
             f"""
             <style>
@@ -140,7 +129,8 @@ st.markdown("""
     .stApp {background: linear-gradient(135deg, #050208 0%, #0a0510 50%, #1a050a 100%); color: #e0d8e0;}
     
     [data-baseweb="input"], [data-baseweb="input"] > div, [data-baseweb="input"] input,
-    [data-baseweb="textarea"], [data-baseweb="textarea"] > div, [data-baseweb="textarea"] textarea {
+    [data-baseweb="textarea"], [data-baseweb="textarea"] > div, [data-baseweb="textarea"] textarea,
+    [data-baseweb="select"] > div {
         background-color: rgba(21, 10, 31, 0.8) !important;
         color: #ffb3c6 !important;
         -webkit-text-fill-color: #ffb3c6 !important; 
@@ -209,7 +199,7 @@ st.markdown("""
     
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
     
-    .stTextInput label p, .stTextArea label p, .stNumberInput label p {
+    .stTextInput label p, .stTextArea label p, .stNumberInput label p, .stSelectbox label p {
         color: #c0f9ff !important; 
         text-shadow: 0 0 8px rgba(192, 249, 255, 0.6) !important; 
         font-weight: bold !important;
@@ -228,23 +218,22 @@ st.markdown("""
 
 st.title("🏍️ N109区点亮计划")
 
-# 性能优化：将音乐文件缓存到内存，加速网页刷新
-@st.cache_data
-def get_audio_bytes(audio_file):
-    with open(audio_file, "rb") as f:
-        return f.read()
-
 # 🦅 专属 BGM 播放器
 try:
-    audio_bytes = get_audio_bytes("bgm.mp3")
+    with open("bgm.mp3", "rb") as f:
+        audio_bytes = f.read()
     st.audio(audio_bytes, format="audio/mpeg", loop=True)
     
     components.html(
         """
         <script>
             const setVolume = () => {
-                const audios = window.parent.document.querySelectorAll('audio');
-                audios.forEach(a => { a.volume = 0.5; });
+                try {
+                    const audios = window.parent.document.querySelectorAll('audio');
+                    audios.forEach(a => { a.volume = 0.5; });
+                } catch (e) {
+                    console.log("移动端音量控制被拦截，已忽略");
+                }
             };
             setTimeout(setVolume, 100);
             setTimeout(setVolume, 500);
@@ -256,14 +245,11 @@ try:
 except Exception as e:
     st.warning(f"⚠️ BGM 加载失败: {e}")
 
-# ==========================================
-# 🦅 性能优化核心：单次仅拉取前 1000 条，极大减少网络延时！
-# ==========================================
-@st.cache_data(ttl=300)
 def fetch_data():
     try:
-        response = supabase.table("blessings").select("*").order("created_at", desc=True).limit(1000).execute()
+        response = supabase.table("blessings").select("*").limit(10000).execute()
         data = response.data
+        if data: data.reverse()
         return data
     except Exception as e:
         st.error(f"⚠️ 雷达读取失败: {e}")
@@ -278,7 +264,7 @@ def save_data(name, city, lon, lat, message):
         st.error(f"⚠️ 数据库写入失败: {e}")
         return False
 
-# --- Pyecharts 赤红呼吸灯地图 (性能优化版) ---
+# --- Pyecharts 赤红呼吸灯地图 ---
 def render_map(data_list):
     geo = (
         Geo(init_opts=opts.InitOpts(width="100%", height="500px", theme=ThemeType.DARK, bg_color="transparent"))
@@ -294,11 +280,10 @@ def render_map(data_list):
     last_coord = st.session_state.get('last_coord')
 
     if data_list:
-        # 🦅 性能优化：150最新 + 150随机 = 300个点，减轻前端 JS 动画压力
-        newest_150 = data_list[:150]
-        remaining_data = data_list[150:]
-        random_150 = random.sample(remaining_data, min(150, len(remaining_data))) if remaining_data else []
-        map_display_data = newest_150 + random_150
+        newest_500 = data_list[:500]
+        remaining_data = data_list[500:]
+        random_1000 = random.sample(remaining_data, min(1000, len(remaining_data))) if remaining_data else []
+        map_display_data = newest_500 + random_1000
 
         for i, item in enumerate(map_display_data):
             lon = item.get('longitude', 0)
@@ -326,7 +311,6 @@ blessings_data = fetch_data()
 
 with col1:
     st.markdown("### 🔴 为你闪烁的满城夜色")
-    
     st.markdown("<span style='color:#68aacd; font-size:0.85em;'>*📡 信号微弱时雷达可能隐匿。若未看到地图，请点击下方按钮重连。*</span>", unsafe_allow_html=True)
     
     if st.button("🔄 重新扫描 N109 区雷达"):
@@ -381,7 +365,6 @@ with col2:
 
                     success = save_data(name, city, final_lon, final_lat, message)
                     if success:
-                        fetch_data.clear()
                         st.session_state['last_coord'] = (final_lon, final_lat)
                         st.markdown(f"""
                         <div style="background: rgba(21, 10, 31, 0.8); border: 1px solid #c0f9ff; border-left: 4px solid #c0f9ff; padding: 15px; border-radius: 4px; box-shadow: 0 0 15px rgba(192, 249, 255, 0.2); margin-bottom: 15px;">
@@ -402,26 +385,19 @@ with col2:
                 safe_msg = html.escape(raw_msg).replace('\n', '<br>')
                 safe_city = html.escape(lucky_hunter.get('city', '未知坐标'))
                 
-                # 🦅 终极修复：全屏结界魔法！彻底解决粒子看不见的问题！
+                # 🦅 终极赛博粒子爆炸引擎 (已修复坐标系 Bug)
                 components.html(
                     f"""
                     <script>
-                        // 瞬间将当前隐藏的 iframe 放大到全屏，突破所有框架限制！
-                        const frame = window.frameElement;
-                        if (frame) {{
-                            frame.style.position = 'fixed';
-                            frame.style.top = '0';
-                            frame.style.left = '0';
-                            frame.style.width = '100vw';
-                            frame.style.height = '100vh';
-                            frame.style.zIndex = '99999';
-                        }}
+                        const parentDoc = window.parent.document;
+                        const oldOverlay = parentDoc.getElementById('sylus-fireworks');
+                        if(oldOverlay) oldOverlay.remove();
 
-                        const overlay = document.createElement('div');
+                        const overlay = parentDoc.createElement('div');
                         overlay.id = 'sylus-fireworks';
-                        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; display:flex; justify-content:center; align-items:center; overflow:hidden; background:rgba(5,2,10,0.5); backdrop-filter:blur(3px);';
+                        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:99999; pointer-events:none; display:flex; justify-content:center; align-items:center; overflow:hidden; background:rgba(5,2,10,0.5); backdrop-filter:blur(3px);';
                         
-                        const card = document.createElement('div');
+                        const card = parentDoc.createElement('div');
                         card.style.cssText = 'background:rgba(15,5,20,0.65); backdrop-filter:blur(12px); border:1px solid rgba(255,0,77,0.5); padding:40px; border-radius:16px; box-shadow:0 0 40px rgba(255,0,77,0.4), inset 0 0 20px rgba(192,249,255,0.1); text-align:center; max-width:80%; z-index:100000; transform:scale(0); animation:popCard 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;';
                         
                         card.innerHTML = `
@@ -435,16 +411,18 @@ with col2:
                         `;
                         overlay.appendChild(card);
 
+                        // 🦅 250颗纯粹发光粒子，获取主屏幕真实宽高！
                         const colors = ['#ff004d', '#c0f9ff', '#ffffff', '#ff4b4b', '#ff8a8a'];
                         for(let i=0; i<250; i++) {{
-                            const p = document.createElement('div');
+                            const p = parentDoc.createElement('div');
                             const size = Math.random() * 5 + 2; 
                             const color = colors[Math.floor(Math.random() * colors.length)];
                             
                             p.style.cssText = `position:absolute; width:${{size}}px; height:${{size}}px; background-color:${{color}}; border-radius:50%; box-shadow:0 0 ${{size*2}}px ${{color}}; z-index:99998;`;
                             
-                            let x = window.innerWidth / 2 + (Math.random() * 300 - 150);
-                            let y = window.innerHeight / 2 + (Math.random() * 100 - 50);
+                            // 🦅 修复：使用 window.parent.innerWidth 获取真实屏幕尺寸！
+                            let x = window.parent.innerWidth / 2 + (Math.random() * 300 - 150);
+                            let y = window.parent.innerHeight / 2 + (Math.random() * 100 - 50);
                             
                             const angle = Math.random() * Math.PI * 2;
                             const velocity = Math.random() * 45 + 15; 
@@ -465,10 +443,11 @@ with col2:
                                 p.style.left = x + 'px';
                                 p.style.top = y + 'px';
                                 
-                                let currentOpacity = Math.max(0, (window.innerHeight + 100 - y) / window.innerHeight);
+                                // 🦅 修复：使用 window.parent.innerHeight 计算透明度！
+                                let currentOpacity = Math.max(0, (window.parent.innerHeight + 100 - y) / window.parent.innerHeight);
                                 p.style.opacity = currentOpacity;
                                 
-                                if(y < window.innerHeight + 100 && currentOpacity > 0) {{
+                                if(y < window.parent.innerHeight + 100 && currentOpacity > 0) {{
                                     requestAnimationFrame(update);
                                 }} else {{
                                     p.remove(); 
@@ -477,21 +456,14 @@ with col2:
                             requestAnimationFrame(update);
                         }}
 
-                        document.body.appendChild(overlay);
+                        parentDoc.body.appendChild(overlay);
 
                         setTimeout(() => {{
-                            overlay.style.transition = 'opacity 0.6s ease-out';
-                            overlay.style.opacity = '0';
-                            setTimeout(() => {{
-                                overlay.remove();
-                                // 🦅 动画结束后，瞬间解除全屏结界，恢复网页正常点击！
-                                if (frame) {{
-                                    frame.style.position = 'static';
-                                    frame.style.width = '0';
-                                    frame.style.height = '0';
-                                    frame.style.zIndex = '-1';
-                                }}
-                            }}, 600);
+                            if(parentDoc.getElementById('sylus-fireworks')) {{
+                                parentDoc.getElementById('sylus-fireworks').style.transition = 'opacity 0.6s ease-out';
+                                parentDoc.getElementById('sylus-fireworks').style.opacity = '0';
+                                setTimeout(() => parentDoc.getElementById('sylus-fireworks').remove(), 600);
+                            }}
                         }}, 4180);
                     </script>
                     """,
