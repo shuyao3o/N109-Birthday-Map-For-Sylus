@@ -199,14 +199,15 @@ except Exception as e:
     st.warning(f"⚠️ BGM 加载失败: {e}")
 
 # ==========================================
-# 🚀 紧急修复：去掉报错的缓存，直接用 limit(1500) 提速！
+# 🚀 极速引擎：按时间倒序拉取 5000 条，供后续“500最新+1000随机”使用！
 # ==========================================
 def fetch_data():
     try:
-        # 只拉取最新的 1500 条，极大降低网络和内存压力！
-        response = supabase.table("blessings").select("*").limit(1500).execute()
+        # 🦅 核心修复：加上 .order("created_at", desc=True)，确保拉取的是最新数据！
+        # 拉取 5000 条作为数据池，既不会卡死，又能保证随机抽取的丰富度
+        response = supabase.table("blessings").select("*").order("created_at", desc=True).limit(5000).execute()
         data = response.data
-        if data: data.reverse()
+        # ⚠️ 注意：因为已经倒序了，最新的就在最前面，千万不要再加 data.reverse() 了！
         return data
     except Exception as e:
         st.error(f"⚠️ 雷达读取失败: {e}")
@@ -237,6 +238,7 @@ def render_map(data_list):
     last_coord = st.session_state.get('last_coord')
 
     if data_list:
+        # 🦅 完美执行主控猎人的神级策略：500最新 + 1000随机
         newest_500 = data_list[:500]
         remaining_data = data_list[500:]
         random_1000 = random.sample(remaining_data, min(1000, len(remaining_data))) if remaining_data else []
