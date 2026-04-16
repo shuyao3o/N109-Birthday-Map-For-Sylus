@@ -21,32 +21,16 @@ def init_connection():
 
 supabase: Client = init_connection()
 
-# ==========================================
-# 🧠 注入雷达记忆模块 (用于专属高亮)
-# ==========================================
 if 'last_coord' not in st.session_state:
     st.session_state['last_coord'] = None
 
-# ==========================================
-# 🦅 N109区专属离线坐标矩阵 (全球扩容版)
-# ==========================================
 CITY_COORDS = {
-    "临空市": (119.00, 32.00), "linkong": (119.00, 32.00),
-    "北京": (116.40, 39.90), "上海": (121.47, 31.23), "天津": (117.20, 39.08), "重庆": (106.50, 29.53),
-    "香港": (114.16, 22.28), "澳门": (113.54, 22.19), "台北": (121.56, 25.03),
-    "石家庄": (114.48, 38.03), "太原": (112.53, 37.87), "呼和浩特": (111.65, 40.82),
-    "沈阳": (123.43, 41.80), "长春": (125.35, 43.88), "哈尔滨": (126.63, 45.75),
-    "南京": (118.79, 32.04), "杭州": (120.15, 30.28), "合肥": (117.27, 31.86),
-    "福州": (119.30, 26.08), "南昌": (115.89, 28.68), "济南": (117.00, 36.65),
-    "郑州": (113.62, 34.75), "武汉": (114.30, 30.59), "长沙": (112.93, 28.23),
-    "广州": (113.26, 23.12), "深圳": (114.05, 22.52), "南宁": (108.33, 22.82), "海口": (110.35, 20.02),
-    "成都": (104.06, 30.67), "贵阳": (106.71, 26.57), "昆明": (102.73, 25.04), "拉萨": (91.11, 29.65),
-    "西安": (108.94, 34.26), "兰州": (103.83, 36.06), "西宁": (101.74, 36.56), "银川": (106.27, 38.47),
-    "乌鲁木齐": (87.68, 43.77),
-    "东京": (139.69, 35.68), "首尔": (126.97, 37.56), "新加坡": (103.81, 1.35), "曼谷": (100.50, 13.75),
-    "伦敦": (-0.12, 51.50), "巴黎": (2.35, 48.85), "柏林": (13.40, 52.52), "罗马": (12.49, 41.90),
-    "马德里": (-3.70, 40.41), "莫斯科": (37.61, 55.75), "基辅": (30.52, 50.45), "阿姆斯特丹": (4.90, 52.36),
-    "纽约": (-74.00, 40.71), "洛杉矶": (-118.24, 34.05), "多伦多": (-79.38, 43.65), "悉尼": (151.20, -33.86)
+    "临空市": (119.00, 32.00), "伦敦": (-0.12, 51.50), "纽约": (-74.00, 40.71),
+    "东京": (139.69, 35.68), "巴黎": (2.35, 48.85), "首尔": (126.97, 37.56),
+    "北京": (116.40, 39.90), "上海": (121.47, 31.23), "广州": (113.26, 23.12),
+    "深圳": (114.05, 22.52), "成都": (104.06, 30.67), "重庆": (106.50, 29.53),
+    "杭州": (120.15, 30.28), "武汉": (114.30, 30.59), "西安": (108.94, 34.26),
+    "南京": (118.79, 32.04), "香港": (114.16, 22.28), "台北": (121.56, 25.03)
 }
 
 def get_coordinates(city_name):
@@ -57,9 +41,6 @@ def get_coordinates(city_name):
         return CITY_COORDS[city_lower]
     return None, None
 
-# ==========================================
-# 🎨 N109区机车霓虹版 UI 深度定制
-# ==========================================
 st.set_page_config(page_title="N109区点亮计划", layout="wide", initial_sidebar_state="collapsed")
 
 def set_bg_image(image_file):
@@ -181,7 +162,6 @@ st.markdown("""
 
 st.title("🏍️ N109区点亮计划")
 
-# 🦅 专属 BGM 播放器
 try:
     with open("bgm.mp3", "rb") as f:
         audio_bytes = f.read()
@@ -209,14 +189,15 @@ except Exception as e:
     pass
 
 # ==========================================
-# 🦅 核心优化：时空缓存魔法！每 60 秒才拉取一次数据，极大减轻服务器压力！
+# 🦅 极限防崩溃优化：缓存 5 分钟，拉取 5000 条样本池！
 # ==========================================
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=300)
 def fetch_data():
     try:
-        # 🦅 优先按 id 倒序拉取最新的 5000 条，保证速度和稳定性！
+        # 拉取 5000 条作为样本池，保证全球各地的猎人都能被抽到
         response = supabase.table("blessings").select("*").order("id", desc=True).limit(5000).execute()
-        return response.data
+        data = response.data
+        return data
     except Exception as e:
         return []
 
@@ -229,7 +210,6 @@ def save_data(name, city, lon, lat, message):
         st.error(f"⚠️ 数据库写入失败: {e}")
         return False
 
-# --- Pyecharts 赤红呼吸灯地图 (性能减负版) ---
 def render_map(data_list):
     geo = (
         Geo(init_opts=opts.InitOpts(width="100%", height="500px", theme=ThemeType.DARK, bg_color="transparent"))
@@ -245,10 +225,12 @@ def render_map(data_list):
     last_coord = st.session_state.get('last_coord')
 
     if data_list:
-        # 🦅 核心优化：渲染点降至 800 个，保证手机端绝对丝滑！
+        # 🦅 黄金比例渲染：最新的 300 个 + 随机抽取的 500 个 = 800 个点！
         newest_300 = data_list[:300]
         remaining_data = data_list[300:]
         random_500 = random.sample(remaining_data, min(500, len(remaining_data))) if remaining_data else []
+        
+        # 最终交给手机渲染的只有这 800 个点，绝对丝滑！
         map_display_data = newest_300 + random_500
 
         for i, item in enumerate(map_display_data):
@@ -271,7 +253,6 @@ def render_map(data_list):
     geo.set_global_opts(title_opts=opts.TitleOpts(title="🎯 全球雷达响应", pos_left="center", title_textstyle_opts=opts.TextStyleOpts(color="#ff004d")))
     return geo.render_embed()
 
-# --- 页面布局 ---
 col1, col2 = st.columns([2, 1])
 blessings_data = fetch_data()
 
@@ -435,9 +416,6 @@ with col2:
             else:
                 st.warning("雷达尚未截获任何信号，无法释放礼花！")
 
-# ==========================================
-# 🦅 底部信号瀑布流展示区
-# ==========================================
 st.markdown("---")
 st.markdown('### <span class="live-dot"></span>截获的猎人小姐信号 (实时)', unsafe_allow_html=True)
 
